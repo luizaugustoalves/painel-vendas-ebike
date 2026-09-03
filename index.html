@@ -206,7 +206,7 @@
 
   <div class="grid">
     <div class="card" data-table="clientes"><header><h3>Maiores clientes</h3></header><div class="hint">Por valor total de pedidos não cancelados</div><div class="tscroll"></div></div>
-    <div class="card" data-table="followup"><header><h3>Propostas sem pedido</h3></header><div class="hint">Propostas emitidas que não viraram pedido do mesmo cliente — lista de follow-up, maiores valores primeiro</div><div class="tscroll"></div></div>
+    <div class="card" data-table="followup"><header><h3>Propostas sem pedido</h3></header><div class="hint">Propostas emitidas que não viraram pedido do mesmo cliente — lista de follow-up, mais recentes primeiro</div><div class="tscroll"></div></div>
   </div>
 
   <div class="card wide" data-table="pedidos" style="margin-bottom:14px">
@@ -509,7 +509,7 @@ function render() {
   columns(cards.fatMes.plot, { categories: meses.map(fmtMes), series: [{ name: 'Faturamento', color: 'var(--accent)', values: fat, tipFormat: fmtBRL2 }] });
   table(cards.fatMes.tbl, [
     { h: 'Mês', cell: (r) => r.m }, { h: 'Faturamento', num: true, cell: (r) => fmtBRL2.format(r.f) }, { h: 'Pedidos', num: true, cell: (r) => fmtInt.format(r.n) }, { h: 'Bikes', num: true, cell: (r) => fmtInt.format(r.b) }, { h: 'Ticket', num: true, cell: (r) => (r.n ? fmtBRL.format(r.f / r.n) : '—') },
-  ], meses.map((m, i) => ({ m: fmtMes(m), f: fat[i], n: nPed[i], b: nBikes[i] })));
+  ], meses.map((m, i) => ({ m: fmtMes(m), f: fat[i], n: nPed[i], b: nBikes[i] })).reverse());
   // enrich tooltip of faturamento with pedidos/bikes
   cards.fatMes.plot.querySelectorAll('.hit').forEach((h, i) => {
     h.addEventListener('pointerenter', (ev) => showTip(ev, fmtMes(meses[i]), [
@@ -525,7 +525,7 @@ function render() {
   ], format: fmtInt.format.bind(fmtInt) });
   table(cards.propPedMes.tbl, [
     { h: 'Mês', cell: (r) => r.m }, { h: 'Propostas', num: true, cell: (r) => fmtInt.format(r.p) }, { h: 'Pedidos', num: true, cell: (r) => fmtInt.format(r.n) }, { h: 'Pedidos / propostas', num: true, cell: (r) => fmtPct(r.p ? r.n / r.p : NaN) },
-  ], meses.map((m, i) => ({ m: fmtMes(m), p: nProp[i], n: nPed[i] })));
+  ], meses.map((m, i) => ({ m: fmtMes(m), p: nProp[i], n: nPed[i] })).reverse());
 
   // Situação dos pedidos
   const sitRows = Object.values(pedidos.reduce((acc, p) => { const k = p.situacaoId; acc[k] ??= { id: k, label: p.situacao, n: 0, total: 0 }; acc[k].n++; acc[k].total += p.total; return acc; }, {}))
@@ -567,13 +567,13 @@ function render() {
   // Maiores clientes
   const cli = {};
   for (const p of validos) { const k = p.contatoId || p.contato; cli[k] ??= { nome: p.contato, n: 0, total: 0, ultimo: p.data, itens: [] }; cli[k].n++; cli[k].total += p.total; if (p.data > cli[k].ultimo) cli[k].ultimo = p.data; cli[k].itens.push(...p.itens.map((i) => i.descricao)); }
-  const cliRows = Object.values(cli).sort((a, b) => b.total - a.total).slice(0, 10);
+  const cliRows = Object.values(cli).sort((a, b) => b.total - a.total || (a.ultimo < b.ultimo ? 1 : -1)).slice(0, 10);
   table(tables.clientes, [
     { h: 'Cliente', strong: true, cell: (r) => cellSub(r.nome, resumoItens(r.itens.map((d) => ({ descricao: d })))) }, { h: 'Pedidos', num: true, cell: (r) => fmtInt.format(r.n) }, { h: 'Total', num: true, cell: (r) => fmtBRL2.format(r.total) }, { h: 'Último', num: true, cell: (r) => fmtDate(r.ultimo) },
   ], cliRows);
 
   // Follow-up: propostas emitidas sem pedido
-  const fu = emitidas.filter((p) => !p.pedidoNumero && p.situacao !== 'Concluído').sort((a, b) => b.total - a.total).slice(0, 15);
+  const fu = emitidas.filter((p) => !p.pedidoNumero && p.situacao !== 'Concluído').sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : b.total - a.total)).slice(0, 15);
   table(tables.followup, [
     { h: 'Nº', num: true, cell: (r) => String(r.numero) }, { h: 'Data', num: true, cell: (r) => fmtDate(r.data) }, { h: 'Cliente', strong: true, cell: (r) => cellSub(r.contato, [r.cidade, r.uf].filter(Boolean).join('/')) }, { h: 'Produto', cell: (r) => resumoItens(r.itens) }, { h: 'Vendedor', cell: (r) => r.vendedor }, { h: 'Situação', cell: (r) => pill(propKind(r.situacao), r.situacao) }, { h: 'Valor', num: true, cell: (r) => fmtBRL2.format(r.total) },
   ], fu, { empty: 'Nenhuma proposta pendente no recorte' });
